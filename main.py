@@ -65,9 +65,29 @@ def ingresar_5_aristas_manualmente(n):
                 print("❌ Entrada inválida. Ingrese un número entero.")
     return G, set(aristas_fijas)
 
-def mostrar_grafo(G):
+def solicitar_fuente_sumidero(n):
+    """Pide y valida vértice fuente y sumidero distintos dentro de [0, n-1]."""
+    nodos_validos = {str(i) for i in range(n)}
+    while True:
+        fuente = input(f"Ingrese el nodo fuente (0 a {n-1}): ").strip()
+        sumidero = input(f"Ingrese el nodo sumidero (0 a {n-1}, distinto de fuente): ").strip()
+        if fuente in nodos_validos and sumidero in nodos_validos and fuente != sumidero:
+            return fuente, sumidero
+        print("❌ Fuente o sumidero inválido. Intente nuevamente.")
+
+def mostrar_grafo(G, fuente=None, sumidero=None):
     pos = nx.kamada_kawai_layout(G)
     edge_labels = nx.get_edge_attributes(G, 'capacity')
+
+    # Colores (fuente=verde, sumidero=rojo, otros=celeste)
+    colores = []
+    for n in G.nodes():
+        if fuente is not None and n == fuente:
+            colores.append('lightgreen')
+        elif sumidero is not None and n == sumidero:
+            colores.append('salmon')
+        else:
+            colores.append('skyblue')
 
     plt.figure(figsize=(10, 7), dpi=100)
     nx.draw(
@@ -75,7 +95,7 @@ def mostrar_grafo(G):
         pos,
         with_labels=True,
         node_size=700,
-        node_color='skyblue',
+        node_color=colores,
         font_size=12,
         font_weight='bold',
         arrows=True,
@@ -88,12 +108,16 @@ def mostrar_grafo(G):
         font_size=10,
         label_pos=0.5
     )
-    plt.title("Grafo Dirigido con Capacidades", fontsize=14)
+
+    titulo = "Grafo Dirigido con Capacidades"
+    if fuente is not None and sumidero is not None:
+        titulo += f"  |  Fuente: {fuente}  •  Sumidero: {sumidero}"
+    plt.title(titulo, fontsize=14)
     plt.axis('off')
     plt.tight_layout()
     plt.show()
 
-# --- MAIN ---
+
 def main():
     n = solicitar_n()
     modo = elegir_modo()
@@ -103,12 +127,17 @@ def main():
     else:
         grafo, aristas_fijas = ingresar_5_aristas_manualmente(n)
         grafo_extra = generar_grafo_aleatorio(n, excluidas=aristas_fijas | set(grafo.edges()))
-
         for u, v, data in grafo_extra.edges(data=True):
             if not grafo.has_edge(u, v):
                 grafo.add_edge(u, v, **data)
 
-    mostrar_grafo(grafo)
+    # pedir fuente y sumidero uwu
+    fuente, sumidero = solicitar_fuente_sumidero(n)
+    print(f"✅ Fuente seleccionada: {fuente}")
+    print(f"✅ Sumidero seleccionado: {sumidero}")
+
+    
+    mostrar_grafo(grafo, fuente=fuente, sumidero=sumidero)
 
 if __name__ == "__main__":
     main()
