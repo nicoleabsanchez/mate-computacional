@@ -1,7 +1,9 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 import random
+from collections import deque
 
+# Función para solicitar el número de nodos
 def solicitar_n():
     while True:
         try:
@@ -13,6 +15,7 @@ def solicitar_n():
         except ValueError:
             print("❌ Entrada inválida. Ingrese un número entero.")
 
+# Función para elegir el modo de generación del grafo
 def elegir_modo():
     while True:
         modo = input("¿Desea generar el grafo aleatoriamente o manualmente? (a/m): ").lower()
@@ -20,8 +23,8 @@ def elegir_modo():
             return modo
         print("❌ Opción inválida. Ingrese 'a' para aleatorio o 'm' para manual.")
 
+# Función para pedir la fuente y el sumidero
 def solicitar_fuente_sumidero(n):
-    """Pide y valida vértice fuente y sumidero distintos dentro de [0, n-1]."""
     nodos_validos = {str(i) for i in range(n)}
     while True:
         fuente = input(f"Ingrese el nodo fuente (0 a {n-1}): ").strip()
@@ -31,50 +34,58 @@ def solicitar_fuente_sumidero(n):
             return fuente, sumidero
         print("❌ Fuente o sumidero inválido. Intente nuevamente.")
 
+# Función para generar el grafo de manera aleatoria
 def generar_grafo_aleatorio(n, fuente, sumidero):
-    """Genera un grafo asegurando que la fuente no tenga aristas entrantes y el sumidero no tenga aristas salientes."""
     G = nx.DiGraph()
     nodos = [str(i) for i in range(n)]
     G.add_nodes_from(nodos)
 
-    max_aristas = n * (n - 1)
-    min_aristas = n
-    num_aristas = random.randint(min_aristas, int(1.5 * n))
+    # Fuente siempre es el nodo 0, sumidero es el nodo n-1
+    # Fuente solo tiene aristas salientes (no puede recibir aristas)
+    for _ in range(3):
+        destino = str(random.choice([i for i in range(1, n-1)]))  # Excluir el sumidero
+        G.add_edge(fuente, destino, capacity=random.randint(4, 15))
 
-    excluidas_bidireccionales = set()
+    # Sumidero siempre es el último nodo, agregar 3 aristas entrantes (no puede tener aristas salientes)
+    for _ in range(3):
+        origen = str(random.choice([i for i in range(0, n-1)]))  # Excluir el sumidero
+        G.add_edge(origen, sumidero, capacity=random.randint(4, 15))
 
-    while G.number_of_edges() < num_aristas:
-        u, v = random.sample(nodos, 2)
+    # Los demás nodos, tener entre 1 o 2 aristas entrantes y salientes
+    for node in range(1, n-1):
+        num_entrantes = random.randint(1, 2)
+        num_salientes = random.randint(1, 2)
 
-        # Verificamos que la fuente no tenga aristas entrantes
-        if u == fuente or v == fuente:
-            if u == fuente and G.in_degree(v) == 0:
-                capacidad = random.randint(10, 30)
-                G.add_edge(u, v, capacity=capacidad)
-            elif v == fuente and G.in_degree(u) == 0:
-                capacidad = random.randint(10, 30)
-                G.add_edge(v, u, capacity=capacidad)
+        # Agregar aristas entrantes (sin involucrar fuente ni sumidero)
+        for _ in range(num_entrantes):
+            G.add_edge(str(random.choice([i for i in range(0, n-1) if i != node and i != fuente])), str(node), capacity=random.randint(4, 15))
 
-        # Verificamos que el sumidero no tenga aristas salientes
-        elif u == sumidero or v == sumidero:
-            if u == sumidero and G.out_degree(v) == 0:
-                capacidad = random.randint(10, 30)
-                G.add_edge(u, v, capacity=capacidad)
-            elif v == sumidero and G.out_degree(u) == 0:
-                capacidad = random.randint(10, 30)
-                G.add_edge(v, u, capacity=capacidad)
-        else:
-            capacidad = random.randint(10, 30)
-            G.add_edge(u, v, capacity=capacidad)
+        # Agregar aristas salientes (sin involucrar fuente ni sumidero)
+        for _ in range(num_salientes):
+            G.add_edge(str(node), str(random.choice([i for i in range(0, n-1) if i != node and i != sumidero])), capacity=random.randint(4, 15))
 
+    # Asegurarnos de que la fuente y sumidero no estén conectados directamente
+    if G.has_edge(fuente, sumidero):
+        G.remove_edge(fuente, sumidero)
+        
+    # Eliminar aristas donde el destino sea el fuente
+    for u, v in list(G.edges()):
+        if v == fuente:
+            G.remove_edge(u, v)
+
+    # Eliminar aristas donde el origen sea el sumidero
+    for u, v in list(G.edges()):
+        if u == sumidero:
+            G.remove_edge(u, v)
+    
     return G
 
+# Función para ingresar 3 aristas manualmente, evitando la fuente y sumidero
 def ingresar_5_aristas_manualmente(n, fuente, sumidero):
     G = nx.DiGraph()
     nodos = [str(i) for i in range(n)]
     G.add_nodes_from(nodos)
 
-    # Pedimos solo 3 aristas que no involucren al fuente ni sumidero
     aristas_fijas = []
     print("🔧 Ingrese 3 aristas que no involucren la fuente ni el sumidero:")
     for _ in range(3):
@@ -98,11 +109,11 @@ def ingresar_5_aristas_manualmente(n, fuente, sumidero):
                 print("❌ Las aristas no pueden involucrar la fuente ni el sumidero.")
     return G, aristas_fijas
 
+# Función para mostrar el grafo
 def mostrar_grafo(G, fuente=None, sumidero=None):
     pos = nx.kamada_kawai_layout(G)
     edge_labels = nx.get_edge_attributes(G, 'capacity')
 
-    # Colores (fuente=verde, sumidero=rojo, otros=celeste)
     colores = []
     for n in G.nodes():
         if fuente is not None and n == fuente:
@@ -144,8 +155,9 @@ def main():
     n = solicitar_n()
     modo = elegir_modo()
 
-    # Pedir fuente y sumidero antes de generar el grafo
-    fuente, sumidero = solicitar_fuente_sumidero(n)
+    # Fuente es siempre 0 y sumidero es siempre n-1
+    fuente = "0"
+    sumidero = str(n-1)
     print(f"✅ Fuente seleccionada: {fuente}")
     print(f"✅ Sumidero seleccionado: {sumidero}")
 
