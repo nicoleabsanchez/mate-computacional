@@ -20,7 +20,19 @@ def elegir_modo():
             return modo
         print("❌ Opción inválida. Ingrese 'a' para aleatorio o 'm' para manual.")
 
-def generar_grafo_aleatorio(n, excluidas=None):
+def solicitar_fuente_sumidero(n):
+    """Pide y valida vértice fuente y sumidero distintos dentro de [0, n-1]."""
+    nodos_validos = {str(i) for i in range(n)}
+    while True:
+        fuente = input(f"Ingrese el nodo fuente (0 a {n-1}): ").strip()
+        sumidero = input(f"Ingrese el nodo sumidero (0 a {n-1}, distinto de fuente): ").strip()
+        
+        if fuente in nodos_validos and sumidero in nodos_validos and fuente != sumidero:
+            return fuente, sumidero
+        print("❌ Fuente o sumidero inválido. Intente nuevamente.")
+
+def generar_grafo_aleatorio(n, fuente, sumidero):
+    """Genera un grafo asegurando que la fuente no tenga aristas entrantes y el sumidero no tenga aristas salientes."""
     G = nx.DiGraph()
     nodos = [str(i) for i in range(n)]
     G.add_nodes_from(nodos)
@@ -29,51 +41,62 @@ def generar_grafo_aleatorio(n, excluidas=None):
     min_aristas = n
     num_aristas = random.randint(min_aristas, int(1.5 * n))
 
-    if excluidas is None:
-        excluidas = set()
-
-    excluidas_bidireccionales = set(frozenset((u, v)) for u, v in excluidas)
+    excluidas_bidireccionales = set()
 
     while G.number_of_edges() < num_aristas:
         u, v = random.sample(nodos, 2)
-        par = frozenset((u, v))
-        if not G.has_edge(u, v) and par not in excluidas_bidireccionales:
+
+        # Verificamos que la fuente no tenga aristas entrantes
+        if u == fuente or v == fuente:
+            if u == fuente and G.in_degree(v) == 0:
+                capacidad = random.randint(10, 30)
+                G.add_edge(u, v, capacity=capacidad)
+            elif v == fuente and G.in_degree(u) == 0:
+                capacidad = random.randint(10, 30)
+                G.add_edge(v, u, capacity=capacidad)
+
+        # Verificamos que el sumidero no tenga aristas salientes
+        elif u == sumidero or v == sumidero:
+            if u == sumidero and G.out_degree(v) == 0:
+                capacidad = random.randint(10, 30)
+                G.add_edge(u, v, capacity=capacidad)
+            elif v == sumidero and G.out_degree(u) == 0:
+                capacidad = random.randint(10, 30)
+                G.add_edge(v, u, capacity=capacidad)
+        else:
             capacidad = random.randint(10, 30)
             G.add_edge(u, v, capacity=capacidad)
-            excluidas_bidireccionales.add(par)
 
     return G
 
-def ingresar_5_aristas_manualmente(n):
+def ingresar_5_aristas_manualmente(n, fuente, sumidero):
     G = nx.DiGraph()
     nodos = [str(i) for i in range(n)]
     G.add_nodes_from(nodos)
 
-    aristas_fijas = [("0", "1"), ("1", "2"), ("2", "3"), ("3", "4"), ("4", "5")]
-    print("🔧 Ingrese la capacidad para las siguientes 5 aristas:")
-
-    for u, v in aristas_fijas:
+    # Pedimos solo 3 aristas que no involucren al fuente ni sumidero
+    aristas_fijas = []
+    print("🔧 Ingrese 3 aristas que no involucren la fuente ni el sumidero:")
+    for _ in range(3):
         while True:
-            try:
-                cap = int(input(f"Capacidad para la arista {u} → {v}: "))
-                if cap > 0:
-                    G.add_edge(u, v, capacity=cap)
-                    break
-                else:
-                    print("❌ La capacidad debe ser mayor a 0.")
-            except ValueError:
-                print("❌ Entrada inválida. Ingrese un número entero.")
-    return G, set(aristas_fijas)
-
-def solicitar_fuente_sumidero(n):
-    """Pide y valida vértice fuente y sumidero distintos dentro de [0, n-1]."""
-    nodos_validos = {str(i) for i in range(n)}
-    while True:
-        fuente = input(f"Ingrese el nodo fuente (0 a {n-1}): ").strip()
-        sumidero = input(f"Ingrese el nodo sumidero (0 a {n-1}, distinto de fuente): ").strip()
-        if fuente in nodos_validos and sumidero in nodos_validos and fuente != sumidero:
-            return fuente, sumidero
-        print("❌ Fuente o sumidero inválido. Intente nuevamente.")
+            u = input(f"Ingrese el nodo de inicio (0 a {n-1}, distinto de fuente y sumidero): ").strip()
+            v = input(f"Ingrese el nodo de destino (0 a {n-1}, distinto de fuente y sumidero): ").strip()
+            if u != fuente and v != fuente and u != sumidero and v != sumidero:
+                while True:
+                    try:
+                        cap = int(input(f"Capacidad para la arista {u} → {v}: "))
+                        if cap > 0:
+                            G.add_edge(u, v, capacity=cap)
+                            aristas_fijas.append((u, v))
+                            break
+                        else:
+                            print("❌ La capacidad debe ser mayor a 0.")
+                    except ValueError:
+                        print("❌ Entrada inválida. Ingrese un número entero.")
+                break
+            else:
+                print("❌ Las aristas no pueden involucrar la fuente ni el sumidero.")
+    return G, aristas_fijas
 
 def mostrar_grafo(G, fuente=None, sumidero=None):
     pos = nx.kamada_kawai_layout(G)
@@ -117,26 +140,24 @@ def mostrar_grafo(G, fuente=None, sumidero=None):
     plt.tight_layout()
     plt.show()
 
-
 def main():
     n = solicitar_n()
     modo = elegir_modo()
 
-    if modo == 'a':
-        grafo = generar_grafo_aleatorio(n)
-    else:
-        grafo, aristas_fijas = ingresar_5_aristas_manualmente(n)
-        grafo_extra = generar_grafo_aleatorio(n, excluidas=aristas_fijas | set(grafo.edges()))
-        for u, v, data in grafo_extra.edges(data=True):
-            if not grafo.has_edge(u, v):
-                grafo.add_edge(u, v, **data)
-
-    # pedir fuente y sumidero uwu
+    # Pedir fuente y sumidero antes de generar el grafo
     fuente, sumidero = solicitar_fuente_sumidero(n)
     print(f"✅ Fuente seleccionada: {fuente}")
     print(f"✅ Sumidero seleccionado: {sumidero}")
 
-    
+    if modo == 'a':
+        grafo = generar_grafo_aleatorio(n, fuente, sumidero)
+    else:
+        grafo, aristas_fijas = ingresar_5_aristas_manualmente(n, fuente, sumidero)
+        grafo_extra = generar_grafo_aleatorio(n, fuente, sumidero)
+        for u, v, data in grafo_extra.edges(data=True):
+            if not grafo.has_edge(u, v):
+                grafo.add_edge(u, v, **data)
+
     mostrar_grafo(grafo, fuente=fuente, sumidero=sumidero)
 
 if __name__ == "__main__":
