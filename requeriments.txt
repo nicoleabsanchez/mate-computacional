@@ -1,0 +1,4 @@
+# file: requirements.txt
+streamlit
+networkx
+matplotlib
