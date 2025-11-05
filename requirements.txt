@@ -1,4 +1,7 @@
 # file: requirements.txt
 streamlit
 networkx
+numpy
+pandas
 matplotlib
+scipy
