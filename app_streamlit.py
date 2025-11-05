@@ -6,6 +6,7 @@ Ejecuta:  streamlit run app_streamlit.py
 from typing import List, Tuple
 import streamlit as st
 import networkx as nx
+import pandas as pd
 
 from src.graph_core import (
     add_or_update_edge_no_bidirectional,
@@ -13,7 +14,8 @@ from src.graph_core import (
     generar_reporte,
     generar_grafo_aleatorio,
 )
-from src.layouts import draw_graph
+from src.layouts import draw_graph, draw_graph_with_min_cut
+from src.ford_fulkerson import calcular_flujo_maximo
 
 st.set_page_config(page_title="Grafo con Capacidades", page_icon="📈", layout="wide")
 st.title("📈 Generador y Visualizador de Grafos Dirigidos (Estilo CLRS)")
@@ -22,14 +24,16 @@ with st.sidebar:
     st.header("⚙️ Parámetros")
     n = st.slider("Número de nodos", min_value=8, max_value=16, value=10, step=1)
     modo = st.radio("Modo", options=["Aleatorio", "Manual"], horizontal=True)
-    layout = st.selectbox("Layout", options=["Capas (layers)", "Kamada–Kawai", "Anclado izquierda/derecha"], index=0)
-    scale = st.slider("Escala (solo Kamada–Kawai)", 0.5, 5.0, 2.5, 0.1)
-    seed = st.number_input("Semilla aleatoria (opcional)", value=42, step=1)
-    st.caption("🎲 La semilla hace reproducible el grafo.")
+    
+    # Valores fijos (no modificables por el usuario)
+    layout = "Capas (layers)"  # Fijo
+    scale = 2.5  # Fijo (solo para Kamada-Kawai, no se usa con Capas)
+    seed = 42  # Fijo
     
     st.divider()
     st.caption("💡 **Modo Aleatorio**: Genera un grafo por capas estilo CLRS")
     st.caption("✏️ **Modo Manual**: Genera base aleatoria y reescribe 3 aristas específicas")
+    st.caption("🎲 Semilla fija: 42 (reproducible)")
 
 nodos = [str(i) for i in range(n)]
 c1, c2 = st.columns(2)
@@ -93,7 +97,117 @@ m3.metric("🔗 Conectado", "✅ Sí" if rep["conectado"] else "❌ No")
 m4.metric("📤 Cap. saliente fuente", rep["cap_sal_f"])
 m5.metric("📥 Cap. entrante sumidero", rep["cap_ent_s"])
 
+# ====== FORD-FULKERSON ======
+st.divider()
+st.header("🌊 Análisis de Flujo Máximo (Ford-Fulkerson)")
+
+if rep["conectado"]:
+    # Calcular flujo máximo
+    ff = calcular_flujo_maximo(G, fuente, sumidero)
+    summary = ff.get_summary()
+    
+    # Mostrar métricas principales
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("🏆 Flujo Máximo", summary['flujo_maximo'], 
+                  help="Cantidad máxima de flujo que puede pasar de la fuente al sumidero")
+    with col2:
+        st.metric("🔴 Aristas Saturadas", f"{summary['aristas_saturadas']}/{summary['total_aristas']}", 
+                  help="Aristas que están utilizando su capacidad máxima")
+    with col3:
+        st.metric("📊 Eficiencia Fuente", summary['eficiencia_fuente'], 
+                  help="Porcentaje de capacidad de salida utilizada")
+    with col4:
+        st.metric("🔄 Caminos Aumentantes", summary['caminos_aumentantes'], 
+                  help="Número de caminos encontrados por el algoritmo")
+    
+    # ====== TEOREMA DEL CORTE MÍNIMO ======
+    st.divider()
+    st.header("✂️ Teorema del Corte Mínimo (Max-Flow Min-Cut)")
+    
+    min_cut_info = ff.get_min_cut_info()
+    
+    st.info(f"""
+    **Teorema de Ford-Fulkerson (1956)**: El valor del flujo máximo es igual a la capacidad del corte mínimo.
+    
+    - **Flujo Máximo**: {summary['flujo_maximo']} unidades
+    - **Capacidad del Corte Mínimo**: {min_cut_info['capacidad_corte']} unidades
+    - ✅ **Verificación**: Flujo Máximo = Capacidad del Corte Mínimo
+    """)
+    
+    # Mostrar grupos del corte
+    col_s, col_t = st.columns(2)
+    
+    with col_s:
+        st.subheader("🔵 Grupo S (Lado de la Fuente)")
+        st.write(f"**Nodos ({min_cut_info['num_nodos_S']}):**")
+        st.code(", ".join(min_cut_info['grupo_S']))
+        st.caption("Nodos alcanzables desde la fuente en el grafo residual")
+    
+    with col_t:
+        st.subheader("🟠 Grupo T (Lado del Sumidero)")
+        st.write(f"**Nodos ({min_cut_info['num_nodos_T']}):**")
+        st.code(", ".join(min_cut_info['grupo_T']))
+        st.caption("Nodos NO alcanzables desde la fuente en el grafo residual")
+    
+    # Aristas del corte
+    st.subheader("✂️ Aristas del Corte Mínimo")
+    st.write(f"**Total: {len(min_cut_info['aristas_corte'])} aristas | Capacidad total: {min_cut_info['capacidad_corte']} unidades**")
+    
+    cut_edges_data = []
+    for u, v in min_cut_info['aristas_corte']:
+        cap = G[u][v].get('capacity', 0)
+        flow = ff.flow.get((u, v), 0)
+        cut_edges_data.append({
+            'Origen (S)': u,
+            'Destino (T)': v,
+            'Capacidad': cap,
+            'Flujo': flow,
+            'Estado': '🔴 Saturada' if flow == cap else '⚪ Parcial'
+        })
+    
+    if cut_edges_data:
+        df_cut = pd.DataFrame(cut_edges_data)
+        st.dataframe(df_cut, use_container_width=True, hide_index=True)
+    
+    st.caption("💡 **Nota**: Las aristas del corte son aquellas que van del Grupo S al Grupo T. Estas aristas determinan el cuello de botella de la red.")
+    
+    # Detalles de flujo por arista
+    st.divider()
+    st.subheader("📋 Flujo por Arista")
+    flow_details = ff.get_flow_details()
+    df_flow = pd.DataFrame(flow_details)
+    
+    st.dataframe(
+        df_flow,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "origen": st.column_config.TextColumn("Origen (u)", width="small"),
+            "destino": st.column_config.TextColumn("Destino (v)", width="small"),
+            "capacidad": st.column_config.NumberColumn("Capacidad", width="small"),
+            "flujo": st.column_config.NumberColumn("Flujo", width="small"),
+            "residual": st.column_config.NumberColumn("Residual", width="small"),
+            "utilizacion": st.column_config.TextColumn("Utilización", width="small"),
+            "saturada": st.column_config.TextColumn("Saturada", width="small"),
+            "corte": st.column_config.TextColumn("Corte", width="small"),
+        }
+    )
+    
+    # Caminos aumentantes
+    with st.expander("🛤️ Caminos Aumentantes Encontrados"):
+        paths = ff.get_augmenting_paths()
+        if paths:
+            for path in paths:
+                st.text(path)
+        else:
+            st.info("No se encontraron caminos aumentantes (el grafo ya está en flujo máximo)")
+    
+else:
+    st.warning("⚠️ No se puede calcular el flujo máximo porque no hay conexión entre fuente y sumidero.")
+
 # ====== VALIDACIONES ======
+st.divider()
 with st.expander("🔍 Validaciones de constraints"):
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -123,8 +237,40 @@ with st.expander("📋 Aristas (u → v) [capacidad]"):
     )
 
 # ====== VISUALIZACIÓN ======
-st.subheader("🎨 Visualización del Grafo")
-fig = draw_graph(G, fuente, sumidero, layout=layout, scale=scale)
-st.pyplot(fig, clear_figure=True)
+st.divider()
+st.header("🎨 Visualización del Grafo")
 
-st.caption("💡 **Tip**: Usa el layout 'Capas (layers)' para ver la estructura por niveles estilo CLRS.")
+# Grafo original (sin corte)
+st.subheader("📊 Grafo Original")
+fig1 = draw_graph(G, fuente, sumidero, layout=layout, scale=scale)
+st.pyplot(fig1, clear_figure=True)
+
+# Grafo con corte mínimo (si hay conexión)
+if rep["conectado"]:
+    st.divider()
+    st.subheader("✂️ Grafo con Corte Mínimo")
+    st.caption("🔴 **Aristas rojas gruesas**: Aristas del corte mínimo | 🔵 **Grupo S**: Nodos azules | 🟠 **Grupo T**: Nodos naranjas")
+    
+    min_cut_info = ff.get_min_cut_info()
+    fig2 = draw_graph_with_min_cut(
+        G, 
+        fuente, 
+        sumidero, 
+        set(min_cut_info['grupo_S']),
+        set(min_cut_info['grupo_T']),
+        min_cut_info['aristas_corte'],
+        layout=layout, 
+        scale=scale
+    )
+    st.pyplot(fig2, clear_figure=True)
+    
+    st.success(f"""
+    ✅ **Interpretación del Corte**:
+    - La línea roja punteada divide el grafo en dos grupos
+    - **Grupo S** ({min_cut_info['num_nodos_S']} nodos): Contiene la fuente y todos los nodos alcanzables desde ella
+    - **Grupo T** ({min_cut_info['num_nodos_T']} nodos): Contiene el sumidero y los nodos no alcanzables
+    - Las **{len(min_cut_info['aristas_corte'])} aristas rojas** representan el cuello de botella de la red
+    - La capacidad total del corte ({min_cut_info['capacidad_corte']}) es igual al flujo máximo ({summary['flujo_maximo']})
+    """)
+
+st.caption("💡 **Tip**: El layout está configurado en modo 'Capas (layers)' para visualización estilo CLRS.")
