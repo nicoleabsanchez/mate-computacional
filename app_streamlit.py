@@ -17,8 +17,8 @@ from src.graph_core import (
 from src.layouts import draw_graph, draw_graph_with_min_cut
 from src.ford_fulkerson import calcular_flujo_maximo
 
-st.set_page_config(page_title="Grafo con Capacidades", page_icon="📈", layout="wide")
-st.title("📈 Generador y Visualizador de Grafos Dirigidos (Estilo CLRS)")
+st.set_page_config(page_title="Problema del Flujo Máximo", page_icon="📈", layout="wide")
+st.title("Problema del Flujo Máximo")
 
 with st.sidebar:
     st.header("⚙️ Parámetros")
@@ -27,13 +27,12 @@ with st.sidebar:
     
     # Valores fijos (no modificables por el usuario)
     layout = "Capas (layers)"  # Fijo
-    scale = 2.5  # Fijo (solo para Kamada-Kawai, no se usa con Capas)
+    scale = 2.5  # Fijo
     seed = 42  # Fijo
     
     st.divider()
-    st.caption("💡 **Modo Aleatorio**: Genera un grafo por capas estilo CLRS")
-    st.caption("✏️ **Modo Manual**: Genera base aleatoria y reescribe 3 aristas específicas")
-    st.caption("🎲 Semilla fija: 42 (reproducible)")
+    st.caption("💡 **Modo Aleatorio**")
+    st.caption("✏️ **Modo Manual**")
 
 nodos = [str(i) for i in range(n)]
 c1, c2 = st.columns(2)
@@ -48,8 +47,7 @@ if fuente == sumidero:
 
 manual_edges: List[Tuple[str, str, int]] = []
 if modo == "Manual":
-    st.subheader("✏️ Aristas manuales (reescribir/agregar)")
-    st.info("📝 En modo manual, se genera un grafo aleatorio base y luego se reescriben o agregan estas 3 aristas.")
+    st.subheader("✏️ Aristas manuales")
     
     for i in range(3):
         a, b, c = st.columns([1, 1, 1])
@@ -272,5 +270,3 @@ if rep["conectado"]:
     - Las **{len(min_cut_info['aristas_corte'])} aristas rojas** representan el cuello de botella de la red
     - La capacidad total del corte ({min_cut_info['capacidad_corte']}) es igual al flujo máximo ({summary['flujo_maximo']})
     """)
-
-st.caption("💡 **Tip**: El layout está configurado en modo 'Capas (layers)' para visualización estilo CLRS.")

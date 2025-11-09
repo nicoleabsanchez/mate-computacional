@@ -71,9 +71,9 @@ def generar_grafo_aleatorio_clrs_style(
     capacity_range: Tuple[int, int] = (4, 20),
 ) -> nx.DiGraph:
     """
-    Genera un grafo dirigido estilo CLRS con estructura por capas ESTRICTA.
+    Genera un grafo dirigido estilo CLRS con estructura por capas.
     
-    REGLAS ABSOLUTAS:
+    REGLAS:
     1. Las aristas SOLO van de una capa a la SIGUIENTE (capa i → capa i+1)
     2. TODOS los nodos de la PENÚLTIMA capa DEBEN conectarse al sumidero
     3. NUNCA conectar capas intermedias directamente al sumidero
@@ -128,13 +128,13 @@ def generar_grafo_aleatorio_clrs_style(
     
     cap_min, cap_max = capacity_range
     
-    # ====== PASO 1: CREAR CAMINO GARANTIZADO (BACKBONE) ======
+    # ====== PASO 1: CREAR CAMINO ======
     backbone_path = [fuente]
     for layer in layers:
         backbone_path.append(random.choice(layer))
     backbone_path.append(sumidero)
     
-    # Crear aristas del backbone
+    # Crear aristas
     for i in range(len(backbone_path) - 1):
         u, v = backbone_path[i], backbone_path[i + 1]
         G.add_edge(u, v, capacity=random.randint(cap_min, cap_max))
@@ -146,7 +146,7 @@ def generar_grafo_aleatorio_clrs_style(
             G.add_edge(fuente, v, capacity=random.randint(cap_min, cap_max))
     
     # ====== PASO 3: CONECTAR CAPAS CONSECUTIVAS (SOLO i → i+1) ======
-    # REGLA: Solo conectar capa i con capa i+1 (NUNCA saltar capas)
+    # REGLA: Solo conectar capa i con capa i+1 (NO saltar capas)
     for i in range(len(layers) - 1):
         layer_current = layers[i]
         layer_next = layers[i + 1]
@@ -196,7 +196,7 @@ def generar_grafo_aleatorio_clrs_style(
     
     # ====== PASO 6: VERIFICAR CONECTIVIDAD Y RESTAURAR SI ES NECESARIO ======
     if not nx.has_path(G, fuente, sumidero):
-        # Restaurar backbone
+        # Restaurar
         for i in range(len(backbone_path) - 1):
             u, v = backbone_path[i], backbone_path[i + 1]
             if not G.has_edge(u, v):
@@ -245,7 +245,7 @@ def generar_grafo_aleatorio_clrs_style(
 
 def generar_grafo_aleatorio(n: int, fuente: str, sumidero: str, seed: int | None = None) -> nx.DiGraph:
     """
-    Wrapper que usa el nuevo generador estilo CLRS.
+    Wrapper que usa el estilo CLRS.
     """
     return generar_grafo_aleatorio_clrs_style(
         n=n,
