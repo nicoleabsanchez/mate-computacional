@@ -29,10 +29,6 @@ with st.sidebar:
     layout = "Capas (layers)"  # Fijo
     scale = 2.5  # Fijo
     seed = 42  # Fijo
-    
-    st.divider()
-    st.caption("💡 **Modo Aleatorio**")
-    st.caption("✏️ **Modo Manual**")
 
 nodos = [str(i) for i in range(n)]
 c1, c2 = st.columns(2)
@@ -105,7 +101,7 @@ if rep["conectado"]:
     summary = ff.get_summary()
     
     # Mostrar métricas principales
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("🏆 Flujo Máximo", summary['flujo_maximo'], 
                   help="Cantidad máxima de flujo que puede pasar de la fuente al sumidero")
@@ -115,9 +111,6 @@ if rep["conectado"]:
     with col3:
         st.metric("📊 Eficiencia Fuente", summary['eficiencia_fuente'], 
                   help="Porcentaje de capacidad de salida utilizada")
-    with col4:
-        st.metric("🔄 Caminos Aumentantes", summary['caminos_aumentantes'], 
-                  help="Número de caminos encontrados por el algoritmo")
     
     # ====== TEOREMA DEL CORTE MÍNIMO ======
     st.divider()
@@ -192,15 +185,6 @@ if rep["conectado"]:
         }
     )
     
-    # Caminos aumentantes
-    with st.expander("🛤️ Caminos Aumentantes Encontrados"):
-        paths = ff.get_augmenting_paths()
-        if paths:
-            for path in paths:
-                st.text(path)
-        else:
-            st.info("No se encontraron caminos aumentantes (el grafo ya está en flujo máximo)")
-    
 else:
     st.warning("⚠️ No se puede calcular el flujo máximo porque no hay conexión entre fuente y sumidero.")
 
@@ -225,14 +209,6 @@ with st.expander("🔍 Validaciones de constraints"):
             st.success("✅ Sin aristas bidireccionales")
         else:
             st.error(f"❌ Pares bidireccionales: {rep['conflictos']}")
-
-# ====== TABLA DE ARISTAS ======
-with st.expander("📋 Aristas (u → v) [capacidad]"):
-    st.dataframe(
-        [{"Origen (u)": u, "Destino (v)": v, "Capacidad": c} for (u, v, c) in rep["edges"]],
-        use_container_width=True, 
-        hide_index=True
-    )
 
 # ====== VISUALIZACIÓN ======
 st.divider()
